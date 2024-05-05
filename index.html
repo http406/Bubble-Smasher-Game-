@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bubble Smasher</title>
+<style>
+    body, html {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background-color: black;
+        width: 100%;
+        height: 100%;
+    }
+    canvas {
+        display: block;
+        margin: auto;
+        background-color: black;
+    }
+    #score {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        color: yellow;
+        font-size: 20px;
+    }
+    #gameOver {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: white;
+        font-size: 40px;
+        display: none;
+    }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<div id="score">Count: <span id="scoreValue">0</span></div>
+<div id="gameOver">Game Over<br><button onclick="restartGame()">Restart</button></div>
+<script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    // Resize canvas to fit the screen
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    // Bubbles array
+    const bubbles = [];
+
+    // Function to generate random number within a range
+    function randomInRange(min, max) {
+        return Math.random() * (max - min) + min;
+    }
+
+    // Bubble class
+    class Bubble {
+        constructor(x, y, radius, color) {
+            this.x = x;
+            this.y = y;
+            this.radius = radius;
+            this.color = color;
+            this.flicker = randomInRange(0.8, 1.2); // Random flicker factor
+            this.angle = 0; // Initial angle for shimmer effect
+        }
+
+        draw() {
+            // Create gradient for bubble
+            const gradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.radius);
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 0.5)');
+            gradient.addColorStop(0.5, this.color);
+            gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+            ctx.fillStyle = gradient;
+            ctx.fill();
+            ctx.closePath();
+        }
+
+        update() {
+            // Add shimmer effect
+            this.angle += 0.05; // Reduce the shimmer effect speed
+
+            // Update bubble position with reduced speed
+            this.x += Math.sin(this.angle) * 0.2; // Reduce horizontal movement speed
+            this.y -= this.flicker * 0.2; // Reduce vertical movement speed
+
+            // Reset bubble position when it goes out of screen
+            if (this.y + this.radius < 0) {
+                this.y = canvas.height + this.radius;
+            }
+        }
+
+        isInside(x, y) {
+            const dx = x - this.x;
+            const dy = y - this.y;
+            return Math.sqrt(dx * dx + dy * dy) <= this.radius;
+        }
+
+        break() {
+            // If bubble is big enough, split into smaller bubbles
+            if (this.radius > 10) {
+                const numBubbles = Math.floor(Math.random() * 3) + 2; // Random number of smaller bubbles (2-4)
+                for (let i = 0; i < numBubbles; i++) {
+                    const newRadius = this.radius / 2;
+                    const newX = randomInRange(this.x - newRadius, this.x + newRadius);
+                    const newY = randomInRange(this.y - newRadius, this.y + newRadius);
+                    bubbles.push(new Bubble(newX, newY, newRadius, this.color));
+                }
+            }
+            // Remove the original bubble from the array
+            bubbles.splice(bubbles.indexOf(this), 1);
+            // Check if it's the special green bubble
+            if (this.color === 'rgba(72, 219, 72, 0.8)') {
+                endGame();
+            }
+        }
+    }
+
+    // Score counter
+    let score = 0;
+    let gameOver = false; // Flag to indicate whether the game is over
+    const scoreElement = document.getElementById('scoreValue');
+
+    // Create bubbles
+    const numBubbles = 49; // Reduced by 1 to make room for the special green bubble
+    for (let i = 0; i < numBubbles; i++) {
+        const x = randomInRange(0, canvas.width);
+        const y = randomInRange(0, canvas.height);
+        const radius = randomInRange(10, 50);
+        const color = i % 2 === 0 ? 'rgba(72, 219, 251, 0.8)' : 'rgba(251, 72, 219, 0.8)'; // Alternate colors with transparency
+        bubbles.push(new Bubble(x, y, radius, color));
+    }
+
+    // Add the special green bubble
+    const specialX = randomInRange(0, canvas.width);
+    const specialY = randomInRange(0, canvas.height);
+    const specialRadius = randomInRange(10, 50);
+    const specialColor = 'rgba(72, 219, 72, 0.8)';
+    bubbles.push(new Bubble(specialX, specialY, specialRadius, specialColor));
+
+    // Update and draw loop
+    function loop() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        bubbles.forEach(bubble => {
+            bubble.update();
+            bubble.draw();
+        });
+
+        requestAnimationFrame(loop);
+    }
+
+    // Start loop
+    loop();
+
+    // Resize canvas when window is resized
+    window.addEventListener('resize', () => {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        bubbles.forEach(bubble => {
+            bubble.x = randomInRange(0, canvas.width);
+            bubble.y = randomInRange(0, canvas.height);
+        });
+    });
+
+    // Touch interaction
+    canvas.addEventListener('touchstart', (event) => {
+        if (!gameOver) { // Check if the game is not over
+            const touch = event.touches[0];
+            const touchX = touch.clientX;
+            const touchY = touch.clientY;
+
+            // Check if touch is inside any bubble
+            for (const bubble of bubbles) {
+                if (bubble.isInside(touchX, touchY)) {
+                    bubble.break(); // Break the bubble
+                    score++; // Increment score
+                    scoreElement.textContent = score; // Update score display
+                    break;
+                }
+            }
+        }
+    });
+
+    function endGame() {
+        gameOver = true; // Set game over flag to true
+        // Stop animation
+        cancelAnimationFrame(loop);
+
+        // Show game over message and restart button
+        const gameOverElement = document.getElementById('gameOver');
+        gameOverElement.style.display = 'block';
+    }
+
+    function restartGame() {
+        gameOver = false; // Reset game over flag
+        // Reset score
+        score = 0;
+        scoreElement.textContent = score;
+
+        // Hide game over message and restart button
+        const gameOverElement = document.getElementById('gameOver');
+        gameOverElement.style.display = 'none';
+
+        // Reset bubbles
+        bubbles.length = 0;
+        for (let i = 0; i < numBubbles; i++) {
+            const x = randomInRange(0, canvas.width);
+            const y = randomInRange(0, canvas.height);
+            const radius = randomInRange(10, 50);
+            const color = i % 2 === 0 ? 'rgba(72, 219, 251, 0.8)' : 'rgba(251, 72, 219, 0.8)'; // Alternate colors with transparency
+            bubbles.push(new Bubble(x, y, radius, color));
+        }
+
+        // Add the special green bubble again
+        const specialX = randomInRange(0, canvas.width);
+        const specialY = randomInRange(0, canvas.height);
+        const specialRadius = randomInRange(10, 50);
+        const specialColor = 'rgba(72, 219, 72, 0.8)';
+        bubbles.push(new Bubble(specialX, specialY, specialRadius, specialColor));
+
+        // Restart animation loop
+        loop();
+    }
+</script>
+</body>
+  </html>
+  
